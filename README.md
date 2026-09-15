@@ -7,6 +7,29 @@ An open-source [Model Context Protocol](https://modelcontextprotocol.io) server 
 
 Let your assistant read your profile, publish text, link and image posts, post on behalf of company pages, comment and react — all through LinkedIn's documented OAuth APIs. No scraping, no password sharing, no ToS gray zone.
 
+## What can I do with it?
+
+**Works for your personal profile — no company account needed.** The two products it relies on (*Share on LinkedIn* and *Sign In with LinkedIn using OpenID Connect*) are self-serve and granted instantly for any LinkedIn member.
+
+### With a personal profile (default setup, instant access)
+
+- ✅ **Publish posts** on your own profile — plain text, with a link preview, or with an image (local file or URL)
+- ✅ **Real hashtags** — `#AI` in your text becomes a clickable LinkedIn hashtag; special characters are escaped automatically
+- ✅ **Choose visibility** — public, connections only, or signed-in members
+- ✅ **Comment** on posts and **react** (like, celebrate, support, love, insightful, funny)
+- ✅ **Delete** posts you created
+- ✅ **Automate posting** — let Claude write and publish on a schedule (see [Automated posting](#automated-posting))
+- ❌ **Reading** your posts, feed or post statistics — LinkedIn restricts `r_member_social` to approved partners
+- ❌ Messages, connections, search, other people's profiles — not offered by LinkedIn's public API
+
+### With a company page (needs the Community Management API)
+
+- ✅ Everything above **as the page** (`organization_id` parameter)
+- ✅ List the pages you administer
+- ✅ Read the page's posts and like/comment statistics
+
+LinkedIn reviews Community Management API requests and requires it to be the only product in its app, so use a **separate app** for company pages.
+
 ## Tools
 
 | Tool | What it does | Required LinkedIn permission |
@@ -27,10 +50,16 @@ Let your assistant read your profile, publish text, link and image posts, post o
 
 ### 1. Create a LinkedIn app
 
-1. Go to <https://www.linkedin.com/developers/apps> → **Create app** (a LinkedIn company page is required; any page you admin works).
-2. Under **Products**, add **Sign In with LinkedIn using OpenID Connect** and **Share on LinkedIn**. Optionally request **Community Management API** for company pages.
-3. Under **Auth**, add `http://localhost:8787/callback` to *Authorized redirect URLs*.
-4. Copy the **Client ID** and **Client Secret**.
+1. **Create a LinkedIn Page (formality only).** LinkedIn requires every developer app to be linked to a Page. If you don't have one, create one in a minute via *For Business → Create a Company Page* — it doesn't need to be a real company and never has to post anything. Your posts will still appear on your **personal** profile.
+2. Go to <https://www.linkedin.com/developers/apps> → **Create app** and select that Page.
+3. In **Settings**, verify the app with the Page (as the Page admin you can approve it yourself).
+4. In **Products**, click *Request access* on exactly these two — both are granted instantly:
+   - **Share on LinkedIn** → `w_member_social` (publish, comment, react)
+   - **Sign In with LinkedIn using OpenID Connect** → `openid profile email` (identifies you as the post author)
+
+   You don't need Advertising, Lead Sync, Events, Conversions or any other product for personal posting.
+5. In **Auth**, add `http://localhost:8787/callback` under *Authorized redirect URLs for your app* and check that the scopes `openid`, `profile`, `email`, `w_member_social` are listed.
+6. Copy the **Client ID** and **Primary Client Secret**.
 
 ### 2. Get an access token
 
@@ -79,6 +108,19 @@ Then ask your assistant things like:
 - *"Draft a LinkedIn post about our new release with a link to https://example.com, show it to me, then publish it."*
 - *"Post this screenshot `/Users/me/Desktop/chart.png` on our company page with alt text."*
 - *"Like and comment 'Congrats!' on urn:li:share:7234…"*
+
+## Automated posting
+
+The MCP server provides the tools; something has to trigger them. Options:
+
+- **Claude scheduled tasks** — e.g. *"Every Tuesday at 9:00, write a short LinkedIn post about this week's topic from my notes and publish it."*
+- **n8n, cron or any agent framework** that can run an MCP client.
+
+Keep in mind:
+
+- **Token lifetime:** standard LinkedIn apps get no refresh token, so the access token expires after **60 days**. Run `auth` again before it expires; the server reports a clear error when it has.
+- **Confirmation:** the post tool's description asks the model to confirm the text before publishing. In unattended runs, state explicitly in your prompt that publishing without confirmation is intended.
+- **Fair use:** posting through the official API is allowed, but LinkedIn's [User Agreement](https://www.linkedin.com/legal/user-agreement) forbids spam and bulk posting — keep the cadence human.
 
 ## Configuration
 
