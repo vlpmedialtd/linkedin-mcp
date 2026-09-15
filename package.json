@@ -40,7 +40,7 @@
   },
   "homepage": "https://github.com/vlpmedialtd/linkedin-mcp#readme",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
