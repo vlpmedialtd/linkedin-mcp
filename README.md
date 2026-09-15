@@ -64,10 +64,10 @@ LinkedIn reviews Community Management API requests and requires it to be the onl
 ### 2. Get an access token
 
 ```bash
-LINKEDIN_CLIENT_ID=xxx LINKEDIN_CLIENT_SECRET=yyy npx -y github:vlpmedialtd/linkedin-mcp auth
+npx -y github:vlpmedialtd/linkedin-mcp auth
 ```
 
-A browser window opens, you approve the app, and the token is stored in `~/.config/linkedin-mcp/token.json` (file mode `600`). LinkedIn tokens are valid for 60 days — just run `auth` again when it expires.
+You'll be asked for your **Client ID** and **Client Secret** (the secret is typed hidden and never stored). You can also pass them as `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` environment variables. A browser window opens, you approve the app, and the token is stored in `~/.config/linkedin-mcp/token.json` (file mode `600`). LinkedIn tokens are valid for 60 days — just run `auth` again when it expires.
 
 For company pages, request more scopes:
 

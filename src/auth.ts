@@ -1,15 +1,44 @@
 import { createServer } from "node:http";
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
+import { createInterface } from "node:readline/promises";
+import { Writable } from "node:stream";
 import { saveStoredToken, type StoredToken } from "./config.js";
 
 const AUTHORIZE_URL = "https://www.linkedin.com/oauth/v2/authorization";
 const TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
 
-function required(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) {
+/** Reads a value from the environment or asks for it interactively (hidden input for secrets). */
+async function required(name: string, label: string, hidden = false): Promise<string> {
+  const fromEnv = process.env[name]?.trim();
+  if (fromEnv) return fromEnv;
+  if (!process.stdin.isTTY) {
     console.error(`Missing environment variable ${name}. See README.md → "Create a LinkedIn app".`);
+    process.exit(1);
+  }
+
+  // Echo goes through this stream so it can be muted after the prompt is shown.
+  let muted = false;
+  const output = new Writable({
+    write(chunk, _encoding, callback) {
+      if (!muted) process.stderr.write(chunk);
+      callback();
+    },
+  });
+  const rl = createInterface({ input: process.stdin, output, terminal: true });
+  rl.on("SIGINT", () => {
+    process.stderr.write("\n");
+    process.exit(130);
+  });
+  const pending = rl.question(`${label}: `);
+  muted = hidden;
+  const answer = await pending;
+  rl.close();
+  if (hidden) process.stderr.write("\n");
+
+  const value = answer.trim();
+  if (!value) {
+    console.error(`${label} must not be empty.`);
     process.exit(1);
   }
   return value;
@@ -27,8 +56,8 @@ function openBrowser(url: string): void {
 
 /** Interactive OAuth 2.0 authorization-code flow. Stores the token for the MCP server. */
 export async function runAuthFlow(): Promise<void> {
-  const clientId = required("LINKEDIN_CLIENT_ID");
-  const clientSecret = required("LINKEDIN_CLIENT_SECRET");
+  const clientId = await required("LINKEDIN_CLIENT_ID", "LinkedIn Client ID");
+  const clientSecret = await required("LINKEDIN_CLIENT_SECRET", "LinkedIn Client Secret (hidden)", true);
   const redirectUri = process.env.LINKEDIN_REDIRECT_URI || "http://localhost:8787/callback";
   const scopes = process.env.LINKEDIN_SCOPES || "openid profile email w_member_social";
   const redirect = new URL(redirectUri);
