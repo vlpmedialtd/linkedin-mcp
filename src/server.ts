@@ -1,9 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { LinkedInClient, postUrl } from "./linkedin.js";
+import { LinkedInApiError, LinkedInClient, postUrl } from "./linkedin.js";
 import { formatCommentary } from "./text.js";
 
-export const VERSION = "0.2.0";
+export const VERSION = "0.2.1";
 
 type ToolResult = { content: Array<{ type: "text"; text: string }>; isError?: boolean };
 
@@ -11,11 +11,19 @@ function ok(value: unknown): ToolResult {
   return { content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value, null, 2) }] };
 }
 
-async function run(fn: () => Promise<unknown>): Promise<ToolResult> {
+const READ_PERMISSION_HINT =
+  "\n\nLinkedIn does not allow regular apps to read posts, comments or engagement statistics of personal profiles " +
+  "(partner-only permission r_member_social). This cannot be enabled in the developer portal. " +
+  "For company pages it works with the Community Management API (r_organization_social). " +
+  "For your own profile, use the analytics export on linkedin.com instead.";
+
+async function run(fn: () => Promise<unknown>, hintOn403?: string): Promise<ToolResult> {
   try {
     return ok(await fn());
   } catch (err) {
-    return { content: [{ type: "text", text: err instanceof Error ? err.message : String(err) }], isError: true };
+    let text = err instanceof Error ? err.message : String(err);
+    if (hintOn403 && err instanceof LinkedInApiError && err.status === 403) text += hintOn403;
+    return { content: [{ type: "text", text }], isError: true };
   }
 }
 
@@ -132,7 +140,7 @@ export function createServer(client: LinkedInClient): McpServer {
       inputSchema: { post_urn: urn("urn:li:share:123") },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    (args) => run(() => client.getPost(args.post_urn)),
+    (args) => run(() => client.getPost(args.post_urn), READ_PERMISSION_HINT),
   );
 
   server.registerTool(
@@ -148,7 +156,8 @@ export function createServer(client: LinkedInClient): McpServer {
       },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    (args) => run(async () => client.listPosts(await actor(args.organization_id), args.count, args.start)),
+    (args) =>
+      run(async () => client.listPosts(await actor(args.organization_id), args.count, args.start), READ_PERMISSION_HINT),
   );
 
   server.registerTool(
@@ -208,11 +217,13 @@ export function createServer(client: LinkedInClient): McpServer {
     "linkedin_get_post_stats",
     {
       title: "Get likes/comments summary of a post",
-      description: "Returns the like and comment summary of a post (socialActions).",
+      description:
+        "Returns the like and comment summary of a post (socialActions). Only works for company-page posts with the Community Management API; " +
+        "LinkedIn does not provide engagement data for personal profiles to regular apps.",
       inputSchema: { post_urn: urn("urn:li:share:123") },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    (args) => run(() => client.getSocialActions(args.post_urn)),
+    (args) => run(() => client.getSocialActions(args.post_urn), READ_PERMISSION_HINT),
   );
 
   return server;

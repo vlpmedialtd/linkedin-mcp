@@ -43,7 +43,7 @@ With a personal profile and the default setup (access is granted instantly):
 | ✅ Engage | Comment on posts and react (like, celebrate, support, love, insightful, funny) |
 | ✅ Delete | Remove posts you created |
 | ✅ Automate | Let your assistant write and publish on a schedule |
-| ❌ Read your feed, posts or statistics | LinkedIn restricts `r_member_social` to approved partners |
+| ❌ Read your feed, posts or engagement statistics (likes, comments, impressions) | LinkedIn restricts `r_member_social` to approved partners; no app setting enables it |
 | ❌ Messages, connections, search, other profiles | Not offered by LinkedIn's public API |
 
 Company pages are supported as well, but need extra approval from LinkedIn (see [Company pages](#company-pages)).
@@ -292,7 +292,8 @@ Keep in mind:
 | `The stored LinkedIn access token expired` | 60 days are over. Run `auth` again. |
 | `auth` still shows old behaviour | npx cached an old version. Run `rm -rf ~/.npm/_npx` and try again. |
 | `EADDRINUSE` on port 8787 | Something else uses the port. Run `export LINKEDIN_REDIRECT_URI=http://localhost:8788/callback`, register that URL in the app, then run `auth`. |
-| LinkedIn API `403` on reading posts or stats | Expected for personal profiles: reading needs `r_member_social`, which LinkedIn doesn't grant to regular apps. |
+| `403 … partnerApiSocialActions.GET` / `partnerApiSocialMetadata.GET` on `get_post_stats`, `get_post`, `list_posts` | Expected for personal profiles. Reading posts, comments and engagement needs `r_member_social`, which LinkedIn only grants to partners. **No setting in your app changes this.** The EU "Member Data Portability" product doesn't help either: it only logs your own actions, not engagement you receive. For your own analytics, use *Analytics → Export* on linkedin.com. |
+| `403 … partnerApiSocialActions.CREATE` / `partnerApiReactions.CREATE` when commenting or reacting | Fixed in v0.2.1: comments and reactions now use the v2 endpoints that work with `w_member_social`. Update (`npx` fetches the latest version; self-hosted: see *Maintenance*). |
 | LinkedIn API `426` / version errors | Set `LINKEDIN_API_VERSION` to a current `YYYYMM` month (LinkedIn supports each version for about a year). |
 | ChatGPT: *"Error creating connector"* / `401` | Check the URL: tunnel address + `/mcp/` + the secret the server printed. Is the `http` server still running? |
 | ChatGPT worked yesterday, not today | The quick tunnel got a new address, or the computer slept. Restart both terminals and update the URL in ChatGPT. |

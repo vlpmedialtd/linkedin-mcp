@@ -224,17 +224,21 @@ export class LinkedInClient {
     );
   }
 
+  // Comments and reactions use the unversioned v2 endpoints: the versioned /rest variants are
+  // gated behind partner permissions (partnerApiSocialActions / partnerApiReactions), while
+  // v2 accepts the self-serve w_member_social scope.
   async commentOnPost(actorUrn: string, postUrn: string, text: string): Promise<unknown> {
     const { data, headers } = await this.request(
       "POST",
-      `/rest/socialActions/${encodeURIComponent(postUrn)}/comments`,
-      { body: { actor: actorUrn, object: postUrn, message: { text } } },
+      `/v2/socialActions/${encodeURIComponent(postUrn)}/comments`,
+      { versioned: false, body: { actor: actorUrn, object: postUrn, message: { text } } },
     );
     return data ?? { id: headers.get("x-restli-id") };
   }
 
   async reactToPost(actorUrn: string, postUrn: string, reactionType: ReactionType): Promise<void> {
-    await this.request("POST", `/rest/reactions?actor=${encodeURIComponent(actorUrn)}`, {
+    await this.request("POST", `/v2/reactions?actor=${encodeURIComponent(actorUrn)}`, {
+      versioned: false,
       body: { root: postUrn, reactionType },
     });
   }

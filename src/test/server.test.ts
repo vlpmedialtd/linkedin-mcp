@@ -32,6 +32,12 @@ function mockFetch(calls: Call[], { imagesApi = true } = {}): typeof fetch {
         },
       });
     }
+    if (url.includes("/v2/socialActions/") && url.endsWith("/comments") && init?.method === "POST") {
+      return Response.json({ id: "C1", object: "urn:li:share:999" }, { status: 201 });
+    }
+    if (url.includes("/v2/reactions?actor=") && init?.method === "POST") {
+      return new Response(null, { status: 201 });
+    }
     if (url.startsWith("https://upload.example/") && init?.method === "PUT") {
       return new Response(null, { status: 201 });
     }
@@ -156,9 +162,37 @@ test("delete_post encodes the urn", async () => {
   assert.ok(calls[0].url.endsWith("/rest/posts/urn%3Ali%3Ashare%3A999"));
 });
 
-test("API errors are returned as tool errors", async () => {
+test("comment and reaction use the self-serve v2 endpoints", async () => {
+  const calls: Call[] = [];
+  const client = await connect(calls);
+  const comment = await client.callTool({
+    name: "linkedin_comment_on_post",
+    arguments: { post_urn: "urn:li:share:999", text: "Source: https://example.com" },
+  });
+  assert.ok(!comment.isError, text(comment));
+  const reaction = await client.callTool({
+    name: "linkedin_react_to_post",
+    arguments: { post_urn: "urn:li:share:999", reaction: "PRAISE" },
+  });
+  assert.ok(!reaction.isError, text(reaction));
+
+  const commentCall = calls.find((c) => c.url.endsWith("/comments"))!;
+  assert.equal(commentCall.url, "https://api.linkedin.com/v2/socialActions/urn%3Ali%3Ashare%3A999/comments");
+  assert.equal(commentCall.headers["LinkedIn-Version"], undefined);
+  assert.deepEqual(JSON.parse(commentCall.body!), {
+    actor: "urn:li:person:abc123",
+    object: "urn:li:share:999",
+    message: { text: "Source: https://example.com" },
+  });
+  const reactionCall = calls.find((c) => c.url.includes("/reactions"))!;
+  assert.ok(reactionCall.url.startsWith("https://api.linkedin.com/v2/reactions?actor=urn%3Ali%3Aperson%3Aabc123"));
+  assert.deepEqual(JSON.parse(reactionCall.body!), { root: "urn:li:share:999", reactionType: "PRAISE" });
+});
+
+test("API errors are returned as tool errors with a permission hint", async () => {
   const client = await connect([]);
-  const result = await client.callTool({ name: "linkedin_get_post", arguments: { post_urn: "urn:li:share:1" } });
+  const result = await client.callTool({ name: "linkedin_get_post_stats", arguments: { post_urn: "urn:li:share:1" } });
   assert.equal(result.isError, true);
   assert.match(text(result), /403: Not enough permissions/);
+  assert.match(text(result), /r_member_social/);
 });

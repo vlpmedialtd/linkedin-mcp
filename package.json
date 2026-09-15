@@ -1,6 +1,6 @@
 {
   "name": "linkedin-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Open-source MCP server for the official LinkedIn API — automate posts on your personal profile from Claude, ChatGPT, Cursor and any MCP client.",
   "type": "module",
   "bin": {
