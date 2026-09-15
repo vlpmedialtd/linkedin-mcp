@@ -19,6 +19,7 @@
   - [2. Sign in](#2-sign-in)
   - [3a. Use with Claude Code / Claude Desktop / Cursor](#3a-use-with-claude-code--claude-desktop--cursor)
   - [3b. Use with ChatGPT](#3b-use-with-chatgpt)
+  - [3c. Self-hosting (always on)](#3c-self-hosting-always-on): for Claude routines, claude.ai and scheduled tasks
 - [Example prompts](#example-prompts)
 - [Automated posting](#automated-posting)
 - [Troubleshooting](#troubleshooting)
@@ -179,6 +180,76 @@ Good to know:
 - **Always-on hosting:** run `linkedin-mcp http --host 0.0.0.0` on any Node host (VPS, Railway, Render, Fly.io …) with `LINKEDIN_ACCESS_TOKEN` and `MCP_AUTH_TOKEN` set as environment variables, behind HTTPS.
 - Menu names in ChatGPT change from time to time. See OpenAI's [Developer mode guide](https://developers.openai.com/api/docs/guides/developer-mode) for the current steps.
 
+### 3c. Self-hosting (always on)
+
+Cloud features such as **Claude routines**, **claude.ai connectors** and **ChatGPT scheduled tasks** run on the provider's servers and can't reach your laptop. For them, run `linkedin-mcp` permanently on a small Linux server. Tested on Ubuntu with Caddy for automatic HTTPS; the files are in [`deploy/`](deploy).
+
+**Requirements:** a server with a public IP, SSH as root, and a (sub)domain whose DNS **A record** points to the server (e.g. `mcp.example.com`).
+
+**1. Install** (on the server)
+
+```bash
+apt-get update && apt-get install -y git caddy nodejs npm
+```
+
+```bash
+useradd --system --home /var/lib/linkedin-mcp --create-home --shell /usr/sbin/nologin linkedin-mcp
+```
+
+```bash
+git clone https://github.com/vlpmedialtd/linkedin-mcp.git /opt/linkedin-mcp && cd /opt/linkedin-mcp && npm ci && npm run build
+```
+
+Node must be 22 or newer (`node -v`). Otherwise install it from [NodeSource](https://github.com/nodesource/distributions).
+
+**2. Copy your LinkedIn token** (run `auth` on your computer first, then from your computer)
+
+```bash
+scp ~/.config/linkedin-mcp/token.json root@SERVER:/root/token.json
+```
+
+On the server:
+
+```bash
+install -d -m 700 -o linkedin-mcp -g linkedin-mcp /etc/linkedin-mcp && install -m 600 -o linkedin-mcp -g linkedin-mcp /root/token.json /etc/linkedin-mcp/token.json && rm /root/token.json
+```
+
+**3. Service, HTTPS and firewall**
+
+```bash
+cp /opt/linkedin-mcp/deploy/linkedin-mcp.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now linkedin-mcp
+```
+
+```bash
+cp /opt/linkedin-mcp/deploy/Caddyfile /etc/caddy/Caddyfile && sed -i 's/mcp.example.com/YOUR.DOMAIN/' /etc/caddy/Caddyfile && systemctl reload caddy
+```
+
+```bash
+ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw --force enable
+```
+
+**4. Get your connector URL**
+
+```bash
+echo "https://YOUR.DOMAIN/linkedin/mcp/$(cat /etc/linkedin-mcp/http-token)"
+```
+
+Check `https://YOUR.DOMAIN/linkedin/health` → `{"status":"ok"}`.
+
+**5. Add it as a connector**
+
+- **claude.ai** (also used by Claude routines, the desktop and mobile apps): **Settings → Connectors → Add custom connector** → name `LinkedIn`, paste the URL, no OAuth needed.
+- **ChatGPT**: see [3b](#3b-use-with-chatgpt), step 3, with this URL instead of the tunnel.
+
+**Maintenance**
+
+| Task | Command (on the server) |
+| --- | --- |
+| Renew LinkedIn token (every 60 days) | run `auth` locally, then repeat step 2 and `systemctl restart linkedin-mcp` |
+| Update to the latest version | `cd /opt/linkedin-mcp && git pull && npm ci && npm run build && systemctl restart linkedin-mcp` |
+| New secret URL | `rm /etc/linkedin-mcp/http-token && systemctl restart linkedin-mcp`, then step 4 and update the connector |
+| Logs | `journalctl -u linkedin-mcp -f` |
+
 ---
 
 ## Example prompts
@@ -226,6 +297,7 @@ Keep in mind:
 | ChatGPT: *"Error creating connector"* / `401` | Check the URL: tunnel address + `/mcp/` + the secret the server printed. Is the `http` server still running? |
 | ChatGPT worked yesterday, not today | The quick tunnel got a new address, or the computer slept. Restart both terminals and update the URL in ChatGPT. |
 | Claude Code: `linkedin` not listed / not connected | Run `claude mcp list`. Re-add with the command from step 3a and start a new session. |
+| **Claude routine / claude.ai: "LinkedIn connector missing"** | Routines and claude.ai run in the cloud and only see connectors added at **claude.ai → Settings → Connectors**, not local MCP servers. Host the server ([3c](#3c-self-hosting-always-on)) and add its URL as a custom connector. |
 | **Claude Desktop chat has no LinkedIn tools** (but Claude Code does) | `claude mcp add` only configures Claude Code. Add the server to `claude_desktop_config.json` (step 3a) with the absolute `npx` path and `PATH`, then quit with `Cmd+Q` and reopen. |
 | Claude Desktop: `spawn npx ENOENT` / server failed | The app can't find Node. Use the absolute path from `which npx` plus an `env.PATH` (see step 3a). Logs: `~/Library/Logs/Claude/mcp-server-linkedin.log`. |
 

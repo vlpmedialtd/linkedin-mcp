@@ -1,0 +1,28 @@
+# systemd unit for linkedin-mcp in HTTP mode.
+# Install: see README → "Self-hosting (always on)".
+[Unit]
+Description=linkedin-mcp (MCP server for the LinkedIn API, HTTP mode)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=linkedin-mcp
+Group=linkedin-mcp
+WorkingDirectory=/opt/linkedin-mcp
+Environment=NODE_ENV=production
+# token.json from `linkedin-mcp auth`; the HTTP secret is generated next to it (http-token)
+Environment=LINKEDIN_TOKEN_FILE=/etc/linkedin-mcp/token.json
+ExecStart=/usr/bin/node /opt/linkedin-mcp/dist/index.js http --host 127.0.0.1 --port 3000
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/etc/linkedin-mcp
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

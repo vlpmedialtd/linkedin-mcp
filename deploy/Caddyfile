@@ -1,0 +1,16 @@
+# Caddy obtains and renews the HTTPS certificate automatically.
+# Replace mcp.example.com with your (sub)domain; its DNS A record must point to the server.
+# Connector URL: https://mcp.example.com/linkedin/mcp/<secret from /etc/linkedin-mcp/http-token>
+mcp.example.com {
+	encode gzip
+	handle_path /linkedin/* {
+		reverse_proxy 127.0.0.1:3000
+	}
+	handle {
+		respond "Not found" 404
+	}
+	# Access logs would contain the secret URL
+	log {
+		output discard
+	}
+}
