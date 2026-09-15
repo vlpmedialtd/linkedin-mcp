@@ -116,6 +116,24 @@ Check with `claude mcp list` (should show `linkedin … ✓ Connected`), then st
 
 Restart the app. Test it by asking *"Who am I on LinkedIn?"*. This only reads your profile; nothing is posted.
 
+> **Claude Desktop (macOS):** the config file is `~/Library/Application Support/Claude/claude_desktop_config.json`. Desktop apps don't inherit your shell's `PATH`, so if Node is installed via nvm, Homebrew or in `~/.local/bin`, use the absolute path from `which npx` and pass a `PATH`:
+>
+> ```json
+> {
+>   "mcpServers": {
+>     "linkedin": {
+>       "command": "/Users/you/.local/bin/npx",
+>       "args": ["-y", "github:vlpmedialtd/linkedin-mcp"],
+>       "env": { "PATH": "/Users/you/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" }
+>     }
+>   }
+> }
+> ```
+>
+> Quit Claude completely (`Cmd+Q`) and reopen it. `claude mcp add` only configures **Claude Code**, not the Claude Desktop chat.
+
+**claude.ai in the browser / Claude mobile**: these need a remote server. Start the [HTTP mode with a tunnel](#3b-use-with-chatgpt) (steps 1 and 2), then go to **Settings → Connectors → Add custom connector** and paste `https://<tunnel>/mcp/<secret>`.
+
 ### 3b. Use with ChatGPT
 
 ChatGPT can't start programs on your computer. It connects to MCP servers over **public HTTPS** instead. `linkedin-mcp` has an HTTP mode for this, and you make it reachable through a tunnel.
@@ -207,7 +225,9 @@ Keep in mind:
 | LinkedIn API `426` / version errors | Set `LINKEDIN_API_VERSION` to a current `YYYYMM` month (LinkedIn supports each version for about a year). |
 | ChatGPT: *"Error creating connector"* / `401` | Check the URL: tunnel address + `/mcp/` + the secret the server printed. Is the `http` server still running? |
 | ChatGPT worked yesterday, not today | The quick tunnel got a new address, or the computer slept. Restart both terminals and update the URL in ChatGPT. |
-| Claude: `linkedin` not listed / not connected | Run `claude mcp list`. Re-add with the command from step 3a and start a new session. |
+| Claude Code: `linkedin` not listed / not connected | Run `claude mcp list`. Re-add with the command from step 3a and start a new session. |
+| **Claude Desktop chat has no LinkedIn tools** (but Claude Code does) | `claude mcp add` only configures Claude Code. Add the server to `claude_desktop_config.json` (step 3a) with the absolute `npx` path and `PATH`, then quit with `Cmd+Q` and reopen. |
+| Claude Desktop: `spawn npx ENOENT` / server failed | The app can't find Node. Use the absolute path from `which npx` plus an `env.PATH` (see step 3a). Logs: `~/Library/Logs/Claude/mcp-server-linkedin.log`. |
 
 Still stuck? [Open an issue](https://github.com/vlpmedialtd/linkedin-mcp/issues) with the error message. **Never post your Client Secret, access token or MCP URL.**
 
