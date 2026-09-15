@@ -157,22 +157,7 @@ export class LinkedInClient {
    */
   async uploadImage(owner: string, source: string): Promise<string> {
     const { bytes, contentType } = await loadBinary(source, this.fetchImpl);
-
-    const { data } = await this.request("POST", "/v2/assets?action=registerUpload", {
-      versioned: false,
-      body: {
-        registerUploadRequest: {
-          owner,
-          recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
-          serviceRelationships: [{ identifier: "urn:li:userGeneratedContent", relationshipType: "OWNER" }],
-          supportedUploadMechanism: ["SYNCHRONOUS_SINGLE_UPLOAD"],
-        },
-      },
-    });
-    const uploadUrl: string | undefined =
-      data?.value?.uploadMechanism?.["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]?.uploadUrl;
-    const asset: string | undefined = data?.value?.asset;
-    if (!uploadUrl || !asset) throw new Error("LinkedIn did not return an upload URL for the image.");
+    const { uploadUrl, urn } = await this.initializeImageUpload(owner);
 
     const token = await this.getAccessToken();
     const upload = await this.fetchImpl(uploadUrl, {
@@ -183,7 +168,36 @@ export class LinkedInClient {
     if (!upload.ok) {
       throw new LinkedInApiError(upload.status, await upload.text(), "PUT", "(image upload)");
     }
-    return asset;
+    return urn;
+  }
+
+  /** Images API (urn:li:image), falling back to the legacy Assets API (urn:li:digitalmediaAsset). */
+  private async initializeImageUpload(owner: string): Promise<{ uploadUrl: string; urn: string }> {
+    try {
+      const { data } = await this.request("POST", "/rest/images?action=initializeUpload", {
+        body: { initializeUploadRequest: { owner } },
+      });
+      if (data?.value?.uploadUrl && data?.value?.image) return { uploadUrl: data.value.uploadUrl, urn: data.value.image };
+    } catch (err) {
+      if (!(err instanceof LinkedInApiError) || ![403, 404].includes(err.status)) throw err;
+    }
+
+    // Note: `supportedUploadMechanism` must not be sent — "SYNCHRONOUS_SINGLE_UPLOAD" is rejected as an invalid enum.
+    const { data } = await this.request("POST", "/v2/assets?action=registerUpload", {
+      versioned: false,
+      body: {
+        registerUploadRequest: {
+          owner,
+          recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
+          serviceRelationships: [{ identifier: "urn:li:userGeneratedContent", relationshipType: "OWNER" }],
+        },
+      },
+    });
+    const uploadUrl: string | undefined =
+      data?.value?.uploadMechanism?.["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]?.uploadUrl;
+    const urn: string | undefined = data?.value?.asset;
+    if (!uploadUrl || !urn) throw new Error("LinkedIn did not return an upload URL for the image.");
+    return { uploadUrl, urn };
   }
 
   /** Organizations where the authenticated member has the given role (Community Management API). */
