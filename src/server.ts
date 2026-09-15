@@ -3,7 +3,7 @@ import { z } from "zod";
 import { LinkedInClient, postUrl } from "./linkedin.js";
 import { formatCommentary } from "./text.js";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 
 type ToolResult = { content: Array<{ type: "text"; text: string }>; isError?: boolean };
 

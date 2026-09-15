@@ -99,9 +99,14 @@ export class LinkedInClient {
     return data as UserInfo;
   }
 
+  private memberUrn?: string;
+
   async getMemberUrn(): Promise<string> {
-    const info = await this.getUserInfo();
-    return `urn:li:person:${info.sub}`;
+    if (!this.memberUrn) {
+      const info = await this.getUserInfo();
+      this.memberUrn = `urn:li:person:${info.sub}`;
+    }
+    return this.memberUrn;
   }
 
   /** Creates a post and returns its URN (e.g. urn:li:share:123 or urn:li:ugcPost:123). */
