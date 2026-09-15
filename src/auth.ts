@@ -36,11 +36,16 @@ async function required(name: string, label: string, hidden = false): Promise<st
   rl.close();
   if (hidden) process.stderr.write("\n");
 
-  const value = answer.trim();
+  // Strip bracketed-paste markers and other control characters some terminals add when pasting.
+  const value = answer
+    .replace(/\x1b\[20[01]~/g, "")
+    .replace(/[\x00-\x1f\x7f]/g, "")
+    .trim();
   if (!value) {
     console.error(`${label} must not be empty.`);
     process.exit(1);
   }
+  if (hidden) console.error(`  (received ${value.length} characters)`);
   return value;
 }
 
@@ -120,7 +125,11 @@ export async function runAuthFlow(): Promise<void> {
   });
   const data = (await res.json()) as Record<string, any>;
   if (!res.ok || !data.access_token) {
-    throw new Error(`Token exchange failed (${res.status}): ${JSON.stringify(data)}`);
+    const hint =
+      data.error === "invalid_client"
+        ? "\nHint: the Client Secret does not match this Client ID. Copy the \"Primary Client Secret\" from the Auth tab of your app (or generate a new one) and try again."
+        : "";
+    throw new Error(`Token exchange failed (${res.status}): ${JSON.stringify(data)}${hint}`);
   }
 
   const now = Date.now();
